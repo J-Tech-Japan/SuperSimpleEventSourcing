@@ -3,17 +3,26 @@ Sample Event Sourcing with Sekiban.Pure
 
 This is super simple event sourcing sample demo.
 
-It includes event sourcing library, and sample domain. It's good to study how event sourcing library is made.
-
-Also it have simple WEB API with Scalar UI, Simple Console App and Simple Unit Test.
-
-**TODO** : Query and listing existing aggregate is not included.
-
 ```
 Event Sourcing is simple concept. Save event, and state can be projected with projector.
 ```
 
-**Parts**
+It includes event sourcing library, and sample domain. It's good to study how event sourcing library is made.
+
+Also it have simple WEB API with Scalar UI, Simple Console App and Simple Unit Test.
+
+# Project
+
+- Domain : Simple Event Sourcing Framework and sample Domain
+- Web : Simple Web API
+- Console : Simple Console App
+- Test : Simple xUnit Test
+
+
+**TODO** : Query and listing existing aggregate is not included.
+
+
+# Parts
 
 - Aggregate: Box for the State. It can be changed during state cycles.
 - Command: Command to make change to Aggregate. It passes into the Command Handler. It can only be make effect on single partition.
