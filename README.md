@@ -3,10 +3,12 @@ Sample Event Sourcing with Sekiban.Pure
 
 This is super simple event sourcing sample demo.
 
+```
+Event Sourcing is simple concept. Save event, and state can be projected with projector.
+```
+
 It includes event sourcing library, and sample domain. It's good to study how event sourcing library is made.
 
-<<<<<<< Updated upstream
-=======
 Also it have simple WEB API with Scalar UI, Simple Console App and Simple Unit Test.
 
 # Project
@@ -17,12 +19,8 @@ Also it have simple WEB API with Scalar UI, Simple Console App and Simple Unit T
 - Test : Simple xUnit Test
 
 
->>>>>>> Stashed changes
 **TODO** : Query and listing existing aggregate is not included.
 
-```
-Event Sourcing is simple concept. Save event, and state can be projected with projector.
-```
 
 # Parts
 
