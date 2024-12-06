@@ -34,7 +34,7 @@ Also it have simple WEB API with Scalar UI, Simple Console App and Simple Unit T
 Simple Branch can be defined below.
 It has Command to register branch and change Name to the branch.
 
-```Simple Branch Definition.cs
+```SimpleBranchDefinition.cs
 public record Branch(string Name) : IAggregatePayload;
 public record BranchCreated(string Name) : IEventPayload;
 public record BranchNameChanged(string Name) : IEventPayload;
