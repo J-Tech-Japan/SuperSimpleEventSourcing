@@ -5,6 +5,8 @@ This is super simple event sourcing sample demo.
 
 It includes event sourcing library, and sample domain. It's good to study how event sourcing library is made.
 
+Also it have simple WEB API with Scalar UI, Simple Console App and Simple Unit Test.
+
 **TODO** : Query and listing existing aggregate is not included.
 
 ```
