@@ -11,6 +11,9 @@ It includes event sourcing library, and sample domain. It's good to study how ev
 
 Also it have simple WEB API with Scalar UI, Simple Console App and Simple Unit Test.
 
+## Limitation
+Event storage is just simple `List<IEvent>`. Which is just runtime storage. Also it only has Partition Level Projection, which can not make live project to list all aggregates.
+
 # Project
 
 - Domain : Simple Event Sourcing Framework and sample Domain
