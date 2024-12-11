@@ -1,8 +1,10 @@
 mod simple;
 
+use std::time::SystemTime;
 use uuid::Uuid;
 use simple::BranchCreated;
-use crate::simple::{Aggregate, AggregateProjector, Branch, BranchNameChanged, BranchProjector, Event, PartitionKeys};
+use crate::simple::{Aggregate, AggregateProjector, Branch, BranchNameChanged, BranchProjector, Event, PartitionKeys, SortableUniqueIdValue};
+use num_format::{Locale, ToFormattedString};
 
 fn main() {
     println!("Hello, world!");
@@ -56,4 +58,22 @@ fn main() {
     let new_payload = projector.project(aggregate.payload.as_ref(), &event2);
 
     println!("Aggregate Payload: (v2) {:?}", new_payload);
+
+    let aggregateProjected = aggregate.project(&event2, &projector);
+
+    println!("Aggregate Payload: (v2) {:?}", aggregateProjected);
+
+
+    let timestamp = SystemTime::now();
+    let uuid = Uuid::new_v4();
+
+    let suid = SortableUniqueIdValue::generate(timestamp, uuid);
+    println!("Generated SortableUniqueIdValue: {}", suid.0);
+
+    let value1 = SortableUniqueIdValue::new(&suid.0);
+    let value2 = SortableUniqueIdValue::get_current_id_from_utc();
+
+    println!("Is value1 earlier than value2? {}", value1.is_earlier_than(&value2));
+    let longtick = SortableUniqueIdValue::system_time_to_csharp_ticks(SystemTime::now());
+    println!("Long tick: {}", longtick.to_formatted_string(&Locale::en));
 }
