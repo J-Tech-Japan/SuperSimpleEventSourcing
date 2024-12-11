@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::fmt;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 pub trait EventPayload: Any {
@@ -26,13 +27,105 @@ impl PartitionKeys {
 }
 
 // SortableUniqueIdValue相当
-pub struct SortableUniqueIdValue(String);
+pub struct SortableUniqueIdValue(pub String);
 
 impl SortableUniqueIdValue {
-    fn new(value: &str) -> Self {
+    pub const SAFE_MILLISECONDS: i64 = 5000;
+    pub const TICK_NUMBER_OF_LENGTH: usize = 19;
+    pub const ID_NUMBER_OF_LENGTH: usize = 11;
+
+    pub fn new(value: &str) -> Self {
         Self(value.to_string())
     }
+
+    pub fn get_ticks(&self) -> SystemTime {
+        let ticks_str = &self.0[..Self::TICK_NUMBER_OF_LENGTH];
+        let ticks = ticks_str.parse::<u64>().unwrap();
+        UNIX_EPOCH + Duration::from_nanos(ticks * 100)
+    }
+
+    pub fn generate(timestamp: SystemTime, id: Uuid) -> Self {
+        Self(Self::get_tick_string(timestamp) + &Self::get_id_string(id))
+    }
+
+    pub fn get_safe_id_from_utc() -> Self {
+        let now = SystemTime::now()
+            .checked_sub(Duration::from_millis(Self::SAFE_MILLISECONDS as u64))
+            .unwrap();
+        Self(Self::get_tick_string(now) + &Self::get_id_string(Uuid::nil()))
+    }
+
+    pub fn get_current_id_from_utc() -> Self {
+        let now = SystemTime::now();
+        Self(Self::get_tick_string(now) + &Self::get_id_string(Uuid::nil()))
+    }
+
+    pub fn get_safe_id(&self) -> Self {
+        let safe_time = self
+            .get_ticks()
+            .checked_sub(Duration::from_millis(Self::SAFE_MILLISECONDS as u64))
+            .unwrap();
+        Self(Self::get_tick_string(safe_time) + &Self::get_id_string(Uuid::nil()))
+    }
+
+    pub fn is_earlier_than(&self, to_compare: &Self) -> bool {
+        self.0 < to_compare.0
+    }
+
+    pub fn is_earlier_than_or_equal(&self, to_compare: &Self) -> bool {
+        self.0 <= to_compare.0
+    }
+
+    pub fn is_later_than(&self, to_compare: &Self) -> bool {
+        self.0 > to_compare.0
+    }
+
+    pub fn is_later_than_or_equal(&self, to_compare: &Self) -> bool {
+        self.0 >= to_compare.0
+    }
+
+    fn get_tick_string(timestamp: SystemTime) -> String {
+        let ticks = SortableUniqueIdValue::system_time_to_csharp_ticks(timestamp);
+        format!("{:019}", ticks)
+    }
+    const TICKS_PER_SECOND: u64 = 10_000_000; // 1秒あたりのC#ティック数 (100ナノ秒単位)
+    const TICKS_FROM_UNIX_TO_CSHARP: u64 = 621_355_968_000_000_000; // UNIX_EPOCHから1/1/0001までのティック数
+
+    pub fn system_time_to_csharp_ticks(timestamp: SystemTime) -> u64 {
+        let duration_since_unix = timestamp
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_else(|_| Duration::ZERO);
+
+        let ticks_since_unix = duration_since_unix.as_secs() * SortableUniqueIdValue::TICKS_PER_SECOND
+            + (duration_since_unix.subsec_nanos() as u64 / 100); // 100ナノ秒単位に変換
+
+        ticks_since_unix + SortableUniqueIdValue::TICKS_FROM_UNIX_TO_CSHARP
+    }
+    fn get_id_string(id: Uuid) -> String {
+        let id_hash = id.to_u128_le() as i64; // Convert UUID to a hash
+        let id_mod_base = 10_i64.pow(Self::ID_NUMBER_OF_LENGTH as u32);
+        format!("{:011}", id_hash.abs() % id_mod_base)
+    }
 }
+
+// Fromトレイトを実装して文字列との暗黙的な変換を可能にする
+impl From<&str> for SortableUniqueIdValue {
+    fn from(value: &str) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<SortableUniqueIdValue> for String {
+    fn from(suid: SortableUniqueIdValue) -> Self {
+        suid.0
+    }
+}
+
+
+
+
+
+
 
 pub trait EventCommon {
     fn version(&self) -> i64;
@@ -86,6 +179,29 @@ impl Aggregate {
             partition_keys,
             version: 0,
             last_sortable_unique_id: "".to_string()
+        }
+    }
+
+    pub fn project(&self, ev: &dyn EventCommon, projector: &dyn AggregateProjector) -> Self {
+        Self {
+            payload: projector.project(&*self.payload, ev),
+            last_sortable_unique_id: ev.sortable_unique_id().to_string(),
+            version: ev.version(),
+            ..self.clone() // Ensure `Clone` is implemented for `Aggregate`
+        }
+    }
+
+    pub fn project_all(&self, events: &[Box<dyn EventCommon>], projector: &dyn AggregateProjector) -> Self {
+        events.iter().fold(self.clone(), |acc, ev| acc.project(&**ev, projector))
+    }
+}
+impl Clone for Aggregate {
+    fn clone(&self) -> Self {
+        Self {
+            payload: self.payload.clone_box(), // Use the `clone_box` method
+            partition_keys: self.partition_keys.clone(),
+            version: self.version,
+            last_sortable_unique_id: self.last_sortable_unique_id.clone(),
         }
     }
 }

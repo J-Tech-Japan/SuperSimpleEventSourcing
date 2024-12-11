@@ -13,11 +13,17 @@ foreach (var arg in args)
     Console.WriteLine(JsonSerializer.Serialize(aggregate.ToTypedPayload<Branch>().UnwrapBox()));
 }
 
+var generatedSortableUniqueId = SortableUniqueIdValue.Generate(SekibanDateProducer.GetRegistered().UtcNow, Guid.NewGuid());
+Console.WriteLine($"Generated SortableUniqueId: {generatedSortableUniqueId}");
+Console.WriteLine($"tick value: {DateTime.UtcNow.Ticks:N0}");
+
+
 Console.WriteLine("input new branch name:");
 var inputN = Console.ReadLine();
 var responseN = await executor.Execute(new RegisterBranch(inputN)).UnwrapBox();
 var aggregateN = Repository.Load<BranchProjector>(responseN.PartitionKeys).UnwrapBox();
 Console.WriteLine(JsonSerializer.Serialize(aggregateN.ToTypedPayload<Branch>().UnwrapBox()));
+
 
 
 while (true)
