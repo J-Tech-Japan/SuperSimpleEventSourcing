@@ -123,45 +123,87 @@ impl From<SortableUniqueIdValue> for String {
 
 pub trait Command { }
 
-pub trait ExecuteCommand<TCommand: Command> {
-    fn execute(&self, command: TCommand) -> Result<(), String>;
-}
-
 pub struct CommandResponse {
     partition_keys: PartitionKeys,
     events: Vec<Box<dyn EventCommon>>,
     version: i64,
 }
 
-pub struct CommandContext {
-    // EventCommonの配列
-    pub events: Vec<Box<dyn EventCommon>>,
-    // 現在のAggregateを取得する関数、入力はない、一部イベントを保存した場合は、保存後のAggregateを返す
-    pub get_current_aggregate: fn() -> Aggregate,
-    // Optional<EventCommon> を返し、入力は保存予定のEventCommon
-    pub save_event: fn(Box<dyn EventCommon>) -> Option<Box<dyn EventCommon>>
+pub trait CommandContextTrait {
+    fn get_events(&self) -> &[Box<dyn EventCommon>];
+    fn get_current_aggregate(&self) -> Aggregate;
+    fn save_event<TEventPayload: EventPayload + Clone>(&mut self, event_payload: TEventPayload) -> Option<Box<dyn EventPayload>>;
 }
+
+
+pub struct CommandContext<'a> {
+    pub events:  &'a mut Vec<Box<dyn EventCommon>>,
+    pub aggregate: &'a mut Aggregate,
+    pub projector: &'a dyn AggregateProjector,
+}
+impl CommandContextTrait for CommandContext<'_> {
+    fn get_events(&self) -> &[Box<dyn EventCommon>] {
+        &self.events
+    }
+
+    fn get_current_aggregate(&self) -> Aggregate {
+        self.aggregate.clone()
+    }
+
+    fn save_event<TEventPayload: EventPayload + Clone>(&mut self, event_payload:TEventPayload) -> Option<Box<dyn EventPayload>>
+    {
+        let event = Box::new(Event {
+            payload: event_payload,
+            partition_keys: self.aggregate.partition_keys.clone(),
+            sortable_unique_id: SortableUniqueIdValue::generate(SystemTime::now(), Uuid::new_v4()).into(),
+            version: self.aggregate.version + 1,
+        });
+        *self.aggregate = self.aggregate.project(&*event, &*self.projector);
+        self.events.push(event.clone());
+        Some(event.get_payload())
+    }
+}
+
 
 pub struct CommandExecutor {
-
+    // Repositoryを持つ
+    pub repository: Repository,
 }
 
-// impl CommandExecutor {
-//     pub fn execute<TCommand: Command>(&self, command: TCommand, projector: &dyn AggregateProjector,
-//                                       // TCommand入力でPartitionKeysを返す関数
-//                                         partition_keys_provider: fn(TCommand) -> PartitionKeys,
-//                                       // command handler コマンドとCommandContextとを受け取り、Optional<EventCommon>を返す関数
-//                                         command_handler: fn(TCommand, CommandContext) -> Option<Box<dyn EventCommon>>) -> CommandResponse
-//         {
-//         let partition_keys = partition_keys_provider(command);
-//         let current_aggregate = (partition_keys.aggregate_id, projector.get_version());
-//         let context = CommandContext {
-//             events: vec![],
-//             get_current_aggregate: || current_aggregate,
-//             save_event: |ev| Some(ev),
-//         }
-//     }
-// }
+impl CommandExecutor {
+    pub fn execute<TCommand: Command>(
+        &mut self, command: TCommand,
+        projector: &dyn AggregateProjector,
+        // TCommand入力でPartitionKeysを返す関数
+        partition_keys_provider: fn(&TCommand) -> PartitionKeys,
+        // command handler コマンドとCommandContextとを受け取り、Optional<EventCommon>を返す関数
+        command_handler: fn(TCommand, &CommandContext) -> Option<Box<dyn EventCommon>>) -> CommandResponse
+        {
+        let partition_keys = partition_keys_provider(&command);
+        let mut current_aggregate = self.repository.load(&partition_keys, projector).unwrap_or_else(|_| Aggregate::empty_from_partition_keys(partition_keys.clone()));
+            let mut events : Vec<Box<dyn EventCommon>> = Vec::new();
+        let context = CommandContext {
+            events: &mut events,
+            aggregate: &mut current_aggregate,
+            projector: projector,
+        };
+        let event = command_handler(command, &context);
+            // if event is some, push event to context.events, if not, get context.events
+            if let Some(event) = event {
+                context.events.push(event.clone_event_common());
+            }
+            let saved_events: Vec<Box<dyn EventCommon>> = context.events
+                .iter()
+                .map(|event| event.clone_event_common())
+                .collect();
+            let _ = self.repository.save(saved_events).unwrap();
+            CommandResponse {
+                partition_keys: context.aggregate.partition_keys.clone(),
+                events: context.events.iter().map(|event| event.clone_event_common()).collect(),
+                version: context.aggregate.version,
+            }
+    }
+}
 
 
 
@@ -174,19 +216,32 @@ pub trait EventCommon {
         // C# の default interface method に相当するデフォルト実装
         SortableUniqueIdValue::new(self.sortable_unique_id())
     }
-    fn get_payload(&self) -> &dyn EventPayload;
+    fn get_payload(&self) -> Box<dyn EventPayload>;
+    fn clone_event_common(&self) -> Box<dyn EventCommon>;
 }
 
-#[derive(Debug)]
-pub struct Event<TEventPayload: EventPayload> {
+pub trait CloneableEventCommon {
+    fn clone_box(&self) -> Box<dyn EventCommon>;
+}
+
+impl<T> CloneableEventCommon for T
+where
+    T: 'static + EventCommon + Clone,
+{
+    fn clone_box(&self) -> Box<dyn EventCommon> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Event<TEventPayload: EventPayload + Clone> {
     pub payload: TEventPayload,
     pub partition_keys: PartitionKeys,
     pub sortable_unique_id: String,
     pub version: i64,
 }
 
-// IEventトレイト実装
-impl<TEventPayload: EventPayload> EventCommon for Event<TEventPayload> {
+impl<TEventPayload: EventPayload + Clone> EventCommon for Event<TEventPayload> {
     fn version(&self) -> i64 {
         self.version
     }
@@ -199,8 +254,12 @@ impl<TEventPayload: EventPayload> EventCommon for Event<TEventPayload> {
         &self.partition_keys
     }
 
-    fn get_payload(&self) -> &dyn EventPayload {
-        &self.payload
+    fn get_payload(&self) -> Box<dyn EventPayload> {
+        Box::new(self.payload.clone())
+    }
+
+    fn clone_event_common(&self) -> Box<dyn EventCommon> {
+        Box::new(self.clone())
     }
 }
 
@@ -263,6 +322,7 @@ pub trait AggregateProjector {
     fn get_version(&self) -> &str {
         "initial"
     }
+    fn clone_box(&self) -> Box<dyn AggregateProjector>;
 }
 
 
@@ -277,7 +337,7 @@ impl Repository {
         }
     }
     // C#でのLoad(PartitionKeys, IAggregateProjector)に対応
-    pub fn load(&self, partition_keys: &PartitionKeys, projector: impl AggregateProjector) -> Result<Aggregate, String> {
+    pub fn load(&self, partition_keys: &PartitionKeys, projector: &dyn AggregateProjector) -> Result<Aggregate, String> {
         let mut filtered: Vec<&Box<dyn EventCommon>> = self.events
             .iter()
             .filter(|ev| {
@@ -292,15 +352,15 @@ impl Repository {
 
         // 空のAggregateを開始点に、全イベントをProject
         let aggregate = Aggregate::empty_from_partition_keys(partition_keys.clone());
-        let projected = filtered.iter().fold(aggregate, |acc, ev| acc.project(&***ev, &projector));
+        let projected = filtered.iter().fold(aggregate, |acc, ev| acc.project(&***ev, projector));
 
         Ok(projected)
     }
 
     // C#でのSave(List<IEvent>)に対応
     // EventsをRepositoryインスタンスに属するメンバとして拡張
-    pub fn save(&mut self, new_events: Vec<Box<dyn EventCommon>>) -> Result<(), String> {
-        self.events.extend(new_events);
+    pub fn save(&mut self, mut new_events: Vec<Box<dyn EventCommon>>) -> Result<(), String> {
+        self.events.append(&mut new_events);
         Ok(())
     }
 }
@@ -313,7 +373,7 @@ impl Repository {
 
 
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct BranchCreated {
     pub name: String,
     pub country: String,
@@ -323,7 +383,7 @@ impl EventPayload for BranchCreated {
         self
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BranchNameChanged {
     pub name: String,
 }
@@ -395,5 +455,9 @@ impl AggregateProjector for BranchProjector {
             // Branch でも EmptyAggregatePayload でもない場合はそのまま
             (*payload).clone_box()
         }
+    }
+
+    fn clone_box(&self) -> Box<dyn AggregateProjector> {
+        Box::new(self.clone())
     }
 }

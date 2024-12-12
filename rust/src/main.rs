@@ -86,7 +86,7 @@ fn main() {
     // 保存されているか確認するために再度ロードしてみる
     let loaded_aggregate = repo.load(
         &partition_keys,
-        projector.clone()
+        &projector
     );
 
     println!("Loaded aggregate: {:?}", loaded_aggregate);
@@ -96,7 +96,7 @@ fn main() {
 
     let loaded_aggregate = repo.load(
         &partition_keys,
-        projector
+        &projector
     );
     println!("Loaded aggregate after name changed: {:?}", loaded_aggregate);
 
