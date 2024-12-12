@@ -123,6 +123,7 @@ impl From<SortableUniqueIdValue> for String {
 
 pub trait Command { }
 
+#[derive(Debug)]
 pub struct CommandResponse {
     partition_keys: PartitionKeys,
     events: Vec<Box<dyn EventCommon>>,
@@ -177,7 +178,7 @@ impl CommandExecutor {
         // TCommand入力でPartitionKeysを返す関数
         partition_keys_provider: fn(&TCommand) -> PartitionKeys,
         // command handler コマンドとCommandContextとを受け取り、Optional<EventCommon>を返す関数
-        command_handler: fn(TCommand, &CommandContext) -> Option<Box<dyn EventCommon>>) -> CommandResponse
+        command_handler: fn(TCommand, &CommandContext) -> Option<Box<dyn EventPayload>>) -> CommandResponse
         {
         let partition_keys = partition_keys_provider(&command);
         let mut current_aggregate = self.repository.load(&partition_keys, projector).unwrap_or_else(|_| Aggregate::empty_from_partition_keys(partition_keys.clone()));
@@ -190,7 +191,7 @@ impl CommandExecutor {
         let event = command_handler(command, &context);
             // if event is some, push event to context.events, if not, get context.events
             if let Some(event) = event {
-                context.events.push(event.clone_event_common());
+                context.events.push( event.clone_event_common());
             }
             let saved_events: Vec<Box<dyn EventCommon>> = context.events
                 .iter()
@@ -461,3 +462,9 @@ impl AggregateProjector for BranchProjector {
         Box::new(self.clone())
     }
 }
+
+pub struct CreateBranchCommand {
+    pub name: String,
+    pub country: String,
+}
+impl Command for CreateBranchCommand {}
