@@ -34,102 +34,18 @@ Events are stored in a simple `List<IEvent>`—this is purely in-memory and not 
 - **Partition**: A stream of events. Aggregates can be reconstructed (projected) from these events.
 - **Projector**: A function that applies events to evolve the aggregate’s state, returning a new state.
 
-Below is a simple example using a "Branch" entity. It includes commands to register a branch and to change the branch's name.
+# Language 1. (C#)
 
-```csharp
-public record Branch(string Name) : IAggregatePayload;
-public record BranchCreated(string Name) : IEventPayload;
-public record BranchNameChanged(string Name) : IEventPayload;
+C# is the language we first developed Sekiban. This is updated concept of new Sekiban. It is still very simple yet powerful enough to extend in future Sekiban.
 
-public class BranchProjector : IAggregateProjector
-{
-    public IAggregatePayload Project(IAggregatePayload payload, IEvent ev) =>
-        (payload, ev.GetPayload()) switch
-        {
-            (EmptyAggregatePayload, BranchCreated created) => new Branch(created.Name),
-            (Branch branch, BranchNameChanged changed) => new Branch(changed.Name),
-            _ => payload
-        };
-}
-
-public record RegisterBranch(string Name) : ICommandWithHandler<RegisterBranch, BranchProjector>
-{
-    public PartitionKeys SpecifyPartitionKeys(RegisterBranch command) => PartitionKeys<BranchProjector>.Generate();
-    public ResultBox<EventOrNone> Handle(RegisterBranch command, ICommandContext context) =>
-        EventOrNone.Event(new BranchCreated(command.Name));
-}
-
-public record ChangeBranchName(Guid BranchId, string NameToChange)
-    : ICommandWithHandler<ChangeBranchName, BranchProjector>
-{
-    public ResultBox<EventOrNone> Handle(ChangeBranchName command, ICommandContext context) =>
-        context.AppendEvent(new BranchNameChanged(command.NameToChange));
-    public PartitionKeys SpecifyPartitionKeys(ChangeBranchName command) =>
-        PartitionKeys<BranchProjector>.Existing(BranchId);
-}
-```
-
-# Usage Examples
-
-**Register a Branch from the Console:**
-
-```csharp
-Console.WriteLine("Enter a new branch name:");
-var inputN = Console.ReadLine();
-var responseN = await executor.Execute(new RegisterBranch(inputN)).UnwrapBox();
-var aggregateN = Repository.Load<BranchProjector>(responseN.PartitionKeys).UnwrapBox();
-Console.WriteLine(JsonSerializer.Serialize(aggregateN.ToTypedPayload<Branch>().UnwrapBox()));
-```
-
-**Change a Branch Name from the Console:**
-
-```csharp
-Console.WriteLine("ChangeName: Enter a new name:");
-var input = Console.ReadLine();
-if (!string.IsNullOrEmpty(input))
-{
-    var response = await executor.Execute(new ChangeBranchName(responseN.PartitionKeys.AggregateId, input ?? "")).UnwrapBox();
-    var aggregate = Repository.Load<BranchProjector>(response.PartitionKeys).UnwrapBox();
-    Console.WriteLine(JsonSerializer.Serialize(aggregate.ToTypedPayload<Branch>().UnwrapBox()));
-}
-```
-
-**Minimal API Definition:**
-
-```csharp
-var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddOpenApi();
-var app = builder.Build();
-
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-    app.MapScalarApiReference();
-}
-app.MapGet("/", () => "Hello World!");
-
-app.MapPost("/api/branch/register", async (RegisterBranch command) =>
-{
-    var executor = new CommandExecutor { EventTypes = new DomainEventTypes() };
-    return await executor.Execute(command).UnwrapBox();
-}).WithOpenApi();
-
-app.MapPost("/api/branch/changename", async (ChangeBranchName command) =>
-{
-    var executor = new CommandExecutor { EventTypes = new DomainEventTypes() };
-    return await executor.Execute(command).UnwrapBox();
-}).WithOpenApi();
-
-app.MapGet("/api/branch/{id}", (Guid id) => 
-    Repository.Load<BranchProjector>(PartitionKeys<BranchProjector>.Existing(id))
-        .Conveyor(aggregate => aggregate.ToTypedPayload<Branch>())
-        .UnwrapBox())
-    .WithOpenApi();
-
-app.Run();
-```
+https://github.com/J-Tech-Japan/SuperSimpleEventSourcing/tree/main/csharp
 
 ![Web API Usage Sample](/output.gif)
+
+# Languages 2. (Rust)
+With my limited knowledge and help of LLM, I have completed very very simple Rust implementation. In comsole you can see it can send command and change aggregate.
+
+https://github.com/J-Tech-Japan/SuperSimpleEventSourcing/tree/main/rust
 
 # Next Steps
 
