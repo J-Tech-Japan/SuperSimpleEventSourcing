@@ -3,7 +3,7 @@ mod simple;
 use std::time::SystemTime;
 use uuid::Uuid;
 use simple::BranchCreated;
-use crate::simple::{Aggregate, AggregateProjector, Branch, BranchNameChanged, BranchProjector, CommandExecutor, CreateBranchCommand, Event, PartitionKeys, Repository, SortableUniqueIdValue};
+use crate::simple::{Aggregate, AggregateProjector, Branch, BranchNameChanged, BranchProjector, ChangeBranchNameCommand, CommandExecutor, CreateBranchCommand, EventCommon, PartitionKeys, Repository, SortableUniqueIdValue};
 use num_format::{Locale, ToFormattedString};
 
 fn main() {
@@ -17,8 +17,8 @@ fn main() {
 
 
     let partition_keys = PartitionKeys::from_aggregate_id(Uuid::new_v4());
-    let event = Event {
-        payload: branchCreated,
+    let event = EventCommon {
+        payload: Box::new(branchCreated),
         partition_keys: partition_keys.clone(),
         sortable_unique_id: "unique_id_example".to_string(),
         version: 1,
@@ -48,8 +48,8 @@ fn main() {
     let change_event_payload = BranchNameChanged {
         name: "main2".to_string(),
     };
-    let event2 = Event {
-        payload: change_event_payload,
+    let event2 = EventCommon {
+        payload: Box::new(change_event_payload),
         partition_keys : partition_keys.clone(),
         sortable_unique_id: "unique_id_example".to_string(),
         version: 2,
@@ -81,7 +81,7 @@ fn main() {
 
     let mut repo = Repository::new();
     // Repositoryにイベントを保存
-    let _ = repo.save(vec![Box::new(event)]);
+    let _ = repo.save(event.clone_event_common());
 
     // 保存されているか確認するために再度ロードしてみる
     let loaded_aggregate = repo.load(
@@ -92,7 +92,7 @@ fn main() {
     println!("Loaded aggregate: {:?}", loaded_aggregate);
 
     // Event<BranchNameChanged> のイベントを追加する
-    let _ = repo.save(vec![Box::new(event2)]);
+    let _ = repo.save(event2.clone_event_common());
 
     let loaded_aggregate = repo.load(
         &partition_keys,
@@ -117,4 +117,25 @@ fn main() {
     })));
 
     println!("Command executed: {:?}", response);
+    let loaded_aggregate = command_executor.repository.load(
+        &response.partition_keys,
+        &projector
+    );
+    println!("Loaded Aggregate: {:?}", response);
+    let change_branch_name_command = ChangeBranchNameCommand {
+        name: "main2".to_string(),
+        partition_keys: response.partition_keys.clone()
+    };
+    let response = command_executor.execute(change_branch_name_command,
+                                            &projector,
+                                            |command| command.partition_keys.clone(),
+                                            |command, context| Some(Box::new(BranchNameChanged {
+        name: command.name.clone(),
+    })));
+    println!("Change Name Command executed: {:?}", response);
+    let loaded_aggregate = command_executor.repository.load(
+        &response.partition_keys,
+        &projector
+    );
+    println!("Loaded Aggregate After Name Change: {:?}", loaded_aggregate);
 }
