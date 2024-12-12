@@ -28,7 +28,7 @@ impl PartitionKeys {
     }
 }
 
-// SortableUniqueIdValue相当
+// 30 charactors string that contains 19 charactors of ticks and 11 charactors of id
 pub struct SortableUniqueIdValue(pub String);
 
 impl SortableUniqueIdValue {
@@ -110,7 +110,6 @@ impl SortableUniqueIdValue {
     }
 }
 
-// Fromトレイトを実装して文字列との暗黙的な変換を可能にする
 impl From<&str> for SortableUniqueIdValue {
     fn from(value: &str) -> Self {
         Self::new(value)
@@ -125,6 +124,12 @@ impl From<SortableUniqueIdValue> for String {
 
 pub trait Command { }
 
+pub trait CommandWithHandler : Command {
+    fn get_projector(&self) -> Box<dyn AggregateProjector>;
+    fn get_partition_keys(&self) -> PartitionKeys;
+    fn command_handler(&self, context: &CommandContext) -> Option<Box<dyn EventPayload>>;
+}
+
 #[derive(Debug)]
 pub struct CommandResponse {
     pub partition_keys: PartitionKeys,
@@ -137,7 +142,6 @@ pub trait CommandContextTrait {
     fn get_current_aggregate(&self) -> Aggregate;
     fn save_event<TEventPayload: EventPayload + Clone>(&mut self, event_payload: TEventPayload) -> Option<Box<dyn EventPayload>>;
 }
-
 
 pub struct CommandContext<'a> {
     pub events:  &'a mut Vec<EventCommon>,
@@ -169,7 +173,6 @@ impl CommandContextTrait for CommandContext<'_> {
 
 
 pub struct CommandExecutor {
-    // Repositoryを持つ
     pub repository: Repository,
 }
 
@@ -177,13 +180,12 @@ impl CommandExecutor {
     pub fn execute<TCommand: Command>(
         &mut self, command: TCommand,
         projector: &dyn AggregateProjector,
-        // TCommand入力でPartitionKeysを返す関数
         partition_keys_provider: fn(&TCommand) -> PartitionKeys,
-        // command handler コマンドとCommandContextとを受け取り、Optional<EventCommon>を返す関数
-        command_handler: fn(TCommand, &CommandContext) -> Option<Box<dyn EventPayload>>) -> CommandResponse
+        command_handler: fn(&TCommand, &CommandContext) -> Option<Box<dyn EventPayload>>) -> CommandResponse
         {
         let partition_keys = partition_keys_provider(&command);
-        let mut current_aggregate = self.repository.load(&partition_keys, projector).unwrap_or_else(|_| Aggregate::empty_from_partition_keys(partition_keys.clone()));
+        let mut current_aggregate = self.repository.load(&partition_keys, projector)
+            .unwrap_or_else(|_| Aggregate::empty_from_partition_keys(partition_keys.clone()));
             let mut events : Vec<EventCommon> = Vec::new();
         let context = CommandContext {
             events: &mut events,
@@ -191,7 +193,7 @@ impl CommandExecutor {
             projector: projector,
         };
             // if event is some, push event to context.events, if not, get context.events
-            if let Some(event_payload) = command_handler(command, &context) {
+            if let Some(event_payload) = command_handler(&command, &context) {
                 let event_payload2 = event_payload.clone_box();
                 let last_event = EventCommon {
                     payload: event_payload2,
@@ -303,7 +305,6 @@ impl Repository {
             events: Vec::new(),
         }
     }
-    // C#でのLoad(PartitionKeys, IAggregateProjector)に対応
     pub fn load(&self, partition_keys: &PartitionKeys, projector: &dyn AggregateProjector) -> Result<Aggregate, String> {
         let mut filtered: Vec<&EventCommon> = self.events
             .iter()
@@ -313,14 +314,9 @@ impl Repository {
                     && ev.partition_keys.root_partition_key == partition_keys.root_partition_key
             })
             .collect();
-
-        // SortableUniqueIdでソート
         filtered.sort_by_key(|ev| ev.sortable_unique_id.to_string());
-
-        // 空のAggregateを開始点に、全イベントをProject
         let aggregate = Aggregate::empty_from_partition_keys(partition_keys.clone());
         let projected = filtered.iter().fold(aggregate, |acc, ev| acc.project(ev, projector));
-
         Ok(projected)
     }
 
@@ -328,9 +324,6 @@ impl Repository {
         self.events.push(new_event);
         Ok(())
     }
-
-    // C#でのSave(List<IEvent>)に対応
-    // EventsをRepositoryインスタンスに属するメンバとして拡張
     pub fn save_events(&mut self, mut new_events: Vec<EventCommon>) -> Result<(), String> {
         // iterate new events and call save method
         for event in new_events.iter_mut() {
@@ -371,11 +364,25 @@ impl EventPayload for BranchNameChanged {
     fn as_any(&self) -> &dyn Any {
         self
     }
+    fn clone_box(&self) -> Box<dyn EventPayload> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BranchCountryNameChanged {
+    pub country: String,
+}
+impl EventPayload for BranchCountryNameChanged {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 
     fn clone_box(&self) -> Box<dyn EventPayload> {
         Box::new(self.clone())
     }
 }
+
 
 #[derive(Debug, Clone)]
 pub struct Branch{
@@ -428,6 +435,11 @@ impl AggregateProjector for BranchProjector {
                     name: branch_name_changed.name.clone(),
                     country: branch.country.clone(),
                 })
+            } else if let Some(branch_country_name_changed) = event.as_any().downcast_ref::<BranchCountryNameChanged>() {
+                Box::new(Branch {
+                    name: branch.name.clone(),
+                    country: branch_country_name_changed.country.clone(),
+                })
             } else {
                 Box::new(Branch {
                     name: branch.name.clone(),
@@ -456,3 +468,30 @@ pub struct ChangeBranchNameCommand {
     pub partition_keys: PartitionKeys
 }
 impl Command for ChangeBranchNameCommand {}
+#[derive(Clone)]
+pub struct ChangeBranchCountryNameCommand {
+    pub country: String,
+    pub partition_keys: PartitionKeys
+}
+
+impl Command for ChangeBranchCountryNameCommand {}
+impl CommandWithHandler for ChangeBranchCountryNameCommand {
+    fn get_projector(&self) -> Box<dyn AggregateProjector> {
+        Box::new(BranchProjector {})
+    }
+
+    fn get_partition_keys(&self) -> PartitionKeys {
+        self.partition_keys.clone()
+    }
+
+    fn command_handler(&self, context: &CommandContext) -> Option<Box<dyn EventPayload>> {
+        let binding = context.get_current_aggregate();
+        let branch = binding.payload.as_any().downcast_ref::<Branch>().unwrap();
+        if branch.country == self.country {
+            return None;
+        }
+        Some(Box::new(BranchCountryNameChanged {
+            country: self.country.clone(),
+        }))
+    }
+}
