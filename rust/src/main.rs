@@ -3,7 +3,7 @@ mod simple;
 use std::time::SystemTime;
 use uuid::Uuid;
 use simple::BranchCreated;
-use crate::simple::{Aggregate, AggregateProjector, Branch, BranchNameChanged, BranchProjector, CommandExecutor, CreateBranchCommand, Event, PartitionKeys, Repository, SortableUniqueIdValue};
+use crate::simple::{Aggregate, AggregateProjector, Branch, BranchNameChanged, BranchProjector, CommandExecutor, CreateBranchCommand, EventCommon, PartitionKeys, Repository, SortableUniqueIdValue};
 use num_format::{Locale, ToFormattedString};
 
 fn main() {
@@ -17,8 +17,8 @@ fn main() {
 
 
     let partition_keys = PartitionKeys::from_aggregate_id(Uuid::new_v4());
-    let event = Event {
-        payload: branchCreated,
+    let event = EventCommon {
+        payload: Box::new(branchCreated),
         partition_keys: partition_keys.clone(),
         sortable_unique_id: "unique_id_example".to_string(),
         version: 1,
@@ -48,8 +48,8 @@ fn main() {
     let change_event_payload = BranchNameChanged {
         name: "main2".to_string(),
     };
-    let event2 = Event {
-        payload: change_event_payload,
+    let event2 = EventCommon {
+        payload: Box::new(change_event_payload),
         partition_keys : partition_keys.clone(),
         sortable_unique_id: "unique_id_example".to_string(),
         version: 2,
