@@ -3,7 +3,7 @@ mod simple;
 use std::time::SystemTime;
 use uuid::Uuid;
 use simple::BranchCreated;
-use crate::simple::{Aggregate, AggregateProjector, Branch, BranchNameChanged, BranchProjector, Event, PartitionKeys, Repository, SortableUniqueIdValue};
+use crate::simple::{Aggregate, AggregateProjector, Branch, BranchNameChanged, BranchProjector, CommandExecutor, CreateBranchCommand, Event, PartitionKeys, Repository, SortableUniqueIdValue};
 use num_format::{Locale, ToFormattedString};
 
 fn main() {
@@ -86,7 +86,7 @@ fn main() {
     // 保存されているか確認するために再度ロードしてみる
     let loaded_aggregate = repo.load(
         &partition_keys,
-        projector.clone()
+        &projector
     );
 
     println!("Loaded aggregate: {:?}", loaded_aggregate);
@@ -96,9 +96,25 @@ fn main() {
 
     let loaded_aggregate = repo.load(
         &partition_keys,
-        projector
+        &projector
     );
     println!("Loaded aggregate after name changed: {:?}", loaded_aggregate);
 
+    let create_branch_command = CreateBranchCommand {
+        name: "main".to_string(),
+        country: "Japan".to_string(),
+    };
+    let mut command_executor = CommandExecutor {
+        repository: repo,
+    };
+    let response = command_executor.execute(create_branch_command, &projector, |command| PartitionKeys {
+        aggregate_id: Uuid::new_v4(),
+        group_: "default".to_string(),
+        root_partition_key: "default".to_string(),
+    }, |command, context| Some(Box::new(BranchCreated {
+        name: command.name.clone(),
+        country: command.country.clone(),
+    })));
 
+    println!("Command executed: {:?}", response);
 }
