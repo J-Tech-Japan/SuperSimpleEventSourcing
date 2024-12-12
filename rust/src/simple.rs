@@ -127,9 +127,9 @@ pub trait Command { }
 
 #[derive(Debug)]
 pub struct CommandResponse {
-    partition_keys: PartitionKeys,
-    events: Vec<EventCommon>,
-    version: i64,
+    pub partition_keys: PartitionKeys,
+    pub events: Vec<EventCommon>,
+    pub version: i64,
 }
 
 pub trait CommandContextTrait {
@@ -163,7 +163,7 @@ impl CommandContextTrait for CommandContext<'_> {
         });
         *self.aggregate = self.aggregate.project(&*event, &*self.projector);
         self.events.push(*event);
-        Some(event.payload)
+        None
     }
 }
 
@@ -205,7 +205,7 @@ impl CommandExecutor {
                 .iter()
                 .map(|event| event.clone_event_common())
                 .collect();
-            let _ = self.repository.save(saved_events).unwrap();
+            let _ = self.repository.save_events(saved_events).unwrap();
             CommandResponse {
                 partition_keys: context.aggregate.partition_keys.clone(),
                 events: context.events.iter().map(|event| event.clone_event_common()).collect(),
@@ -250,14 +250,14 @@ impl Aggregate {
     pub fn project(&self, ev: &EventCommon, projector: &dyn AggregateProjector) -> Self {
         Self {
             payload: projector.project(&*self.payload, ev),
-            last_sortable_unique_id: ev.sortable_unique_id().to_string(),
-            version: ev.version(),
+            last_sortable_unique_id: ev.sortable_unique_id.clone(),
+            version: ev.version,
             ..self.clone() // Ensure `Clone` is implemented for `Aggregate`
         }
     }
 
     pub fn project_all(&self, events: &[EventCommon], projector: &dyn AggregateProjector) -> Self {
-        events.iter().fold(self.clone(), |acc, ev| acc.project(&**ev, projector))
+        events.iter().fold(self.clone(), |acc, ev| acc.project(ev, projector))
     }
 }
 impl Clone for Aggregate {
@@ -308,26 +308,34 @@ impl Repository {
         let mut filtered: Vec<&EventCommon> = self.events
             .iter()
             .filter(|ev| {
-                ev.partition_keys().aggregate_id == partition_keys.aggregate_id
-                    && ev.partition_keys().group_ == partition_keys.group_
-                    && ev.partition_keys().root_partition_key == partition_keys.root_partition_key
+                ev.partition_keys.aggregate_id == partition_keys.aggregate_id
+                    && ev.partition_keys.group_ == partition_keys.group_
+                    && ev.partition_keys.root_partition_key == partition_keys.root_partition_key
             })
             .collect();
 
         // SortableUniqueIdでソート
-        filtered.sort_by_key(|ev| ev.sortable_unique_id().to_string());
+        filtered.sort_by_key(|ev| ev.sortable_unique_id.to_string());
 
         // 空のAggregateを開始点に、全イベントをProject
         let aggregate = Aggregate::empty_from_partition_keys(partition_keys.clone());
-        let projected = filtered.iter().fold(aggregate, |acc, ev| acc.project(&***ev, projector));
+        let projected = filtered.iter().fold(aggregate, |acc, ev| acc.project(ev, projector));
 
         Ok(projected)
     }
 
+    pub fn save(&mut self, new_event: EventCommon) -> Result<(), String> {
+        self.events.push(new_event);
+        Ok(())
+    }
+
     // C#でのSave(List<IEvent>)に対応
     // EventsをRepositoryインスタンスに属するメンバとして拡張
-    pub fn save(&mut self, mut new_events: Vec<EventCommon>) -> Result<(), String> {
-        self.events.append(&mut new_events);
+    pub fn save_events(&mut self, mut new_events: Vec<EventCommon>) -> Result<(), String> {
+        // iterate new events and call save method
+        for event in new_events.iter_mut() {
+            let _ = self.save(event.clone_event_common());
+        }
         Ok(())
     }
 }
@@ -395,7 +403,7 @@ impl AggregateProjector for BranchProjector {
     fn project(&self, payload: &dyn AggregatePayload, ev: &EventCommon) -> Box<dyn AggregatePayload> {
         // EmptyAggregatePayloadの場合の処理
         if let Some(_) = payload.as_any().downcast_ref::<EmptyAggregatePayload>() {
-            let event = ev.get_payload();
+            let event = ev.payload.clone_box();
             if let Some(branch_created) = event.as_any().downcast_ref::<BranchCreated>() {
                 return Box::new(Branch {
                     name: branch_created.name.clone(),
@@ -409,7 +417,7 @@ impl AggregateProjector for BranchProjector {
 
         // 既存のBranchがある場合の処理
         if let Some(branch) = payload.as_any().downcast_ref::<Branch>() {
-            let event = ev.get_payload();
+            let event = ev.payload.clone_box();
             if let Some(branch_created) = event.as_any().downcast_ref::<BranchCreated>() {
                 Box::new(Branch {
                     name: branch_created.name.clone(),
@@ -442,3 +450,9 @@ pub struct CreateBranchCommand {
     pub country: String,
 }
 impl Command for CreateBranchCommand {}
+
+pub struct ChangeBranchNameCommand {
+    pub name: String,
+    pub partition_keys: PartitionKeys
+}
+impl Command for ChangeBranchNameCommand {}
