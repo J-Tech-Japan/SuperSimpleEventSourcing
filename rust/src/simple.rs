@@ -121,10 +121,47 @@ impl From<SortableUniqueIdValue> for String {
     }
 }
 
+pub trait Command { }
 
+pub trait ExecuteCommand<TCommand: Command> {
+    fn execute(&self, command: TCommand) -> Result<(), String>;
+}
 
+pub struct CommandResponse {
+    partition_keys: PartitionKeys,
+    events: Vec<Box<dyn EventCommon>>,
+    version: i64,
+}
 
+pub struct CommandContext {
+    // EventCommonの配列
+    pub events: Vec<Box<dyn EventCommon>>,
+    // 現在のAggregateを取得する関数、入力はない、一部イベントを保存した場合は、保存後のAggregateを返す
+    pub get_current_aggregate: fn() -> Aggregate,
+    // Optional<EventCommon> を返し、入力は保存予定のEventCommon
+    pub save_event: fn(Box<dyn EventCommon>) -> Option<Box<dyn EventCommon>>
+}
 
+pub struct CommandExecutor {
+
+}
+
+// impl CommandExecutor {
+//     pub fn execute<TCommand: Command>(&self, command: TCommand, projector: &dyn AggregateProjector,
+//                                       // TCommand入力でPartitionKeysを返す関数
+//                                         partition_keys_provider: fn(TCommand) -> PartitionKeys,
+//                                       // command handler コマンドとCommandContextとを受け取り、Optional<EventCommon>を返す関数
+//                                         command_handler: fn(TCommand, CommandContext) -> Option<Box<dyn EventCommon>>) -> CommandResponse
+//         {
+//         let partition_keys = partition_keys_provider(command);
+//         let current_aggregate = (partition_keys.aggregate_id, projector.get_version());
+//         let context = CommandContext {
+//             events: vec![],
+//             get_current_aggregate: || current_aggregate,
+//             save_event: |ev| Some(ev),
+//         }
+//     }
+// }
 
 
 pub trait EventCommon {
