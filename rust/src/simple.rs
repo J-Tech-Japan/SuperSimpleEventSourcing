@@ -164,6 +164,8 @@ pub struct CommandExecutor {
 // }
 
 
+
+
 pub trait EventCommon {
     fn version(&self) -> i64;
     fn sortable_unique_id(&self) -> &str;
@@ -264,6 +266,52 @@ pub trait AggregateProjector {
 }
 
 
+pub struct Repository {
+    events: Vec<Box<dyn EventCommon>>,
+}
+
+impl Repository {
+    pub fn new() -> Self {
+        Self {
+            events: Vec::new(),
+        }
+    }
+    // C#でのLoad(PartitionKeys, IAggregateProjector)に対応
+    pub fn load(&self, partition_keys: &PartitionKeys, projector: impl AggregateProjector) -> Result<Aggregate, String> {
+        let mut filtered: Vec<&Box<dyn EventCommon>> = self.events
+            .iter()
+            .filter(|ev| {
+                ev.partition_keys().aggregate_id == partition_keys.aggregate_id
+                    && ev.partition_keys().group_ == partition_keys.group_
+                    && ev.partition_keys().root_partition_key == partition_keys.root_partition_key
+            })
+            .collect();
+
+        // SortableUniqueIdでソート
+        filtered.sort_by_key(|ev| ev.sortable_unique_id().to_string());
+
+        // 空のAggregateを開始点に、全イベントをProject
+        let aggregate = Aggregate::empty_from_partition_keys(partition_keys.clone());
+        let projected = filtered.iter().fold(aggregate, |acc, ev| acc.project(&***ev, &projector));
+
+        Ok(projected)
+    }
+
+    // C#でのSave(List<IEvent>)に対応
+    // EventsをRepositoryインスタンスに属するメンバとして拡張
+    pub fn save(&mut self, new_events: Vec<Box<dyn EventCommon>>) -> Result<(), String> {
+        self.events.extend(new_events);
+        Ok(())
+    }
+}
+
+
+
+
+
+
+
+
 
 #[derive(Debug)]
 pub struct BranchCreated {
@@ -301,7 +349,7 @@ impl AggregatePayload for Branch {
         Box::new(self.clone())
     }
 }
-
+#[derive(Clone)]
 pub struct BranchProjector {}
 
 
@@ -310,6 +358,21 @@ impl AggregateProjector for BranchProjector {
     // if event.get_payload() is BranchNameChanged, then return Branch with name set
     // if else, just return payload that passed as argument
     fn project(&self, payload: &dyn AggregatePayload, ev: &dyn EventCommon) -> Box<dyn AggregatePayload> {
+        // EmptyAggregatePayloadの場合の処理
+        if let Some(_) = payload.as_any().downcast_ref::<EmptyAggregatePayload>() {
+            let event = ev.get_payload();
+            if let Some(branch_created) = event.as_any().downcast_ref::<BranchCreated>() {
+                return Box::new(Branch {
+                    name: branch_created.name.clone(),
+                    country: branch_created.country.clone(),
+                });
+            } else {
+                // EmptyAggregatePayload だが BranchCreated でなかった場合は変化なし
+                return (*payload).clone_box();
+            }
+        }
+
+        // 既存のBranchがある場合の処理
         if let Some(branch) = payload.as_any().downcast_ref::<Branch>() {
             let event = ev.get_payload();
             if let Some(branch_created) = event.as_any().downcast_ref::<BranchCreated>() {
@@ -329,6 +392,7 @@ impl AggregateProjector for BranchProjector {
                 })
             }
         } else {
+            // Branch でも EmptyAggregatePayload でもない場合はそのまま
             (*payload).clone_box()
         }
     }

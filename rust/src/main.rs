@@ -3,7 +3,7 @@ mod simple;
 use std::time::SystemTime;
 use uuid::Uuid;
 use simple::BranchCreated;
-use crate::simple::{Aggregate, AggregateProjector, Branch, BranchNameChanged, BranchProjector, Event, PartitionKeys, SortableUniqueIdValue};
+use crate::simple::{Aggregate, AggregateProjector, Branch, BranchNameChanged, BranchProjector, Event, PartitionKeys, Repository, SortableUniqueIdValue};
 use num_format::{Locale, ToFormattedString};
 
 fn main() {
@@ -52,7 +52,7 @@ fn main() {
         payload: change_event_payload,
         partition_keys : partition_keys.clone(),
         sortable_unique_id: "unique_id_example".to_string(),
-        version: 1,
+        version: 2,
     };
 
     let new_payload = projector.project(aggregate.payload.as_ref(), &event2);
@@ -76,4 +76,29 @@ fn main() {
     println!("Is value1 earlier than value2? {}", value1.is_earlier_than(&value2));
     let longtick = SortableUniqueIdValue::system_time_to_csharp_ticks(SystemTime::now());
     println!("Long tick: {}", longtick.to_formatted_string(&Locale::en));
+
+
+
+    let mut repo = Repository::new();
+    // Repositoryにイベントを保存
+    let _ = repo.save(vec![Box::new(event)]);
+
+    // 保存されているか確認するために再度ロードしてみる
+    let loaded_aggregate = repo.load(
+        &partition_keys,
+        projector.clone()
+    );
+
+    println!("Loaded aggregate: {:?}", loaded_aggregate);
+
+    // Event<BranchNameChanged> のイベントを追加する
+    let _ = repo.save(vec![Box::new(event2)]);
+
+    let loaded_aggregate = repo.load(
+        &partition_keys,
+        projector
+    );
+    println!("Loaded aggregate after name changed: {:?}", loaded_aggregate);
+
+
 }
