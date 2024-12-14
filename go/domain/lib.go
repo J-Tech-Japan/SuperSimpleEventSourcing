@@ -212,6 +212,12 @@ func (r *Repository) Save(newEvent EventCommon) error {
 	return nil
 }
 
+// Save adds multiple events to the repository.
+func (r *Repository) SaveAll(newEvents []EventCommon) error {
+	r.Events = append(r.Events, newEvents...)
+	return nil
+}
+
 type CommandResponse struct {
 	PartitionKeys PartitionKeys `json:"partition_keys"`
 	Events        []EventCommon `json:"events"`
@@ -249,4 +255,50 @@ func (ctx *CommandContext) AppendEvent(eventPayload EventPayload) EventPayloadOr
 	ctx.Aggregate = aggregate
 	ctx.Events = append(ctx.Events, toAdd)
 	return EventPayloadOrNone{HasValue: false}
+}
+
+type Command interface {
+	IsCommand() bool
+}
+
+func ExecuteCommand[TCommand Command](repository *Repository, command TCommand, projector AggregateProjector, partitionKeysProvider func(command TCommand) PartitionKeys, commandHandler func(command TCommand, context CommandContext) EventPayloadOrNone) (CommandResponse, error) {
+	partitionKeys := partitionKeysProvider(command)
+
+	currentAggregate, err := repository.Load(partitionKeys, projector)
+	if err != nil {
+		return CommandResponse{}, err
+	}
+
+	context := CommandContext{
+		Events:    make([]EventCommon, 0),
+		Aggregate: currentAggregate,
+		Projector: projector,
+	}
+
+	// コマンドハンドラーを実行
+	if eventPayloadOrNone := commandHandler(command, context); eventPayloadOrNone.HasValue {
+		lastEvent := EventCommon{
+			Payload:          eventPayloadOrNone.GetValue(),
+			PartitionKeys:    currentAggregate.PartitionKeys,
+			SortableUniqueID: GenerateSortableUniqueID(time.Now().UTC(), uuid.New()),
+			Version:          currentAggregate.Version + 1,
+		}
+		context.Aggregate = context.Aggregate.Project(&lastEvent, projector)
+		context.Events = append(context.Events, lastEvent)
+	}
+	currentAggregate = context.Aggregate
+	// イベントを保存
+	savedEvents := context.Events
+	err = repository.SaveAll(savedEvents)
+	if err != nil {
+		fmt.Println("Error saving events:", err)
+		return CommandResponse{}, err
+	}
+
+	// コマンドレスポンスを生成
+	return CommandResponse{
+		PartitionKeys: currentAggregate.PartitionKeys,
+		Events:        savedEvents,
+		Version:       currentAggregate.Version,
+	}, nil
 }
