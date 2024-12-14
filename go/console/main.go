@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/google/uuid"
+	"time"
 )
 import "go_eventsourcing/domain"
 
@@ -50,4 +51,8 @@ func main() {
 	fmt.Printf("aggregate start: %+v\n", aggregateStart)
 	aggregateAfterCreated := aggregateStart.Project(&event, branchProjector)
 	fmt.Printf("branch created aggregate: %+v\n", aggregateAfterCreated)
+
+	sortableUniqueId := domain.GenerateSortableUniqueID(time.Now().UTC(), uuid.New())
+	fmt.Printf("sortable unique ID: %+v\n", sortableUniqueId)
+
 }
