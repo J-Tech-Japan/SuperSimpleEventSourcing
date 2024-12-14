@@ -261,7 +261,21 @@ type Command interface {
 	IsCommand() bool
 }
 
-func ExecuteCommand[TCommand Command](repository *Repository, command TCommand, projector AggregateProjector, partitionKeysProvider func(command TCommand) PartitionKeys, commandHandler func(command TCommand, context CommandContext) EventPayloadOrNone) (CommandResponse, error) {
+func ExecuteCommandWithHandler[TCommand CommandWithHandler](repository *Repository, command TCommand) (CommandResponse, error) {
+	return ExecuteCommand(repository,
+		command,
+		command.GetProjector(),
+		func(command TCommand) PartitionKeys { return command.SpecifyPartitionKeys() },
+		func(command TCommand, context CommandContext) EventPayloadOrNone {
+			return command.Handle(context)
+		})
+}
+
+func ExecuteCommand[TCommand Command](repository *Repository,
+	command TCommand,
+	projector AggregateProjector,
+	partitionKeysProvider func(command TCommand) PartitionKeys,
+	commandHandler func(command TCommand, context CommandContext) EventPayloadOrNone) (CommandResponse, error) {
 	partitionKeys := partitionKeysProvider(command)
 
 	currentAggregate, err := repository.Load(partitionKeys, projector)
@@ -301,4 +315,11 @@ func ExecuteCommand[TCommand Command](repository *Repository, command TCommand, 
 		Events:        savedEvents,
 		Version:       currentAggregate.Version,
 	}, nil
+}
+
+type CommandWithHandler interface {
+	Command
+	Handle(context CommandContext) EventPayloadOrNone
+	SpecifyPartitionKeys() PartitionKeys
+	GetProjector() AggregateProjector
 }

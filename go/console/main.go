@@ -105,4 +105,14 @@ func main() {
 	}
 	aggregate2, err := repository.Load(response.PartitionKeys, branchProjector)
 	fmt.Printf("aggregate: %+v\n", aggregate2)
+	changeCountryCommand := domain.ChangeBranchCountryCommand{
+		Country:       "USA",
+		PartitionKeys: response.PartitionKeys,
+	}
+	response, err = domain.ExecuteCommandWithHandler(repository, changeCountryCommand)
+	if err != nil {
+		fmt.Printf("Error executing command: %v\n", err)
+	}
+	aggregate3, err := repository.Load(response.PartitionKeys, branchProjector)
+	fmt.Printf("aggregate: %+v\n", aggregate3)
 }

@@ -8,7 +8,7 @@ var executor = new CommandExecutor { EventTypes = new DomainEventTypes() };
 
 foreach (var arg in args)
 {
-    var response = await executor.Execute(new RegisterBranch(arg)).UnwrapBox();
+    var response = await executor.Execute(new RegisterBranch(arg, "japan")).UnwrapBox();
     var aggregate = Repository.Load<BranchProjector>(response.PartitionKeys).UnwrapBox();
     Console.WriteLine(JsonSerializer.Serialize(aggregate.ToTypedPayload<Branch>().UnwrapBox()));
 }
@@ -20,7 +20,7 @@ Console.WriteLine($"tick value: {DateTime.UtcNow.Ticks:N0}");
 
 Console.WriteLine("input new branch name:");
 var inputN = Console.ReadLine();
-var responseN = await executor.Execute(new RegisterBranch(inputN)).UnwrapBox();
+var responseN = await executor.Execute(new RegisterBranch(inputN, "japan")).UnwrapBox();
 var aggregateN = Repository.Load<BranchProjector>(responseN.PartitionKeys).UnwrapBox();
 Console.WriteLine(JsonSerializer.Serialize(aggregateN.ToTypedPayload<Branch>().UnwrapBox()));
 

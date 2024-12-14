@@ -27,7 +27,7 @@ public class UnitTest1
         var executor = new CommandExecutor { EventTypes = new DomainEventTypes() };
 
         Assert.Empty(Repository.Events);
-        await executor.Execute(new RegisterBranch("branch1"));
+        await executor.Execute(new RegisterBranch("branch1", "japan"));
 
         Assert.Single(Repository.Events);
         var last = Repository.Events.Last();
@@ -45,7 +45,7 @@ public class UnitTest1
         var executor = new CommandExecutor { EventTypes = new DomainEventTypes() };
 
         Assert.Empty(Repository.Events);
-        var executed = await executor.Execute(new RegisterBranch("branch1"));
+        var executed = await executor.Execute(new RegisterBranch("branch1", "japan"));
         Assert.True(executed.IsSuccess);
         var aggregateId = executed.GetValue().PartitionKeys.AggregateId;
 
@@ -73,8 +73,8 @@ public class UnitTest1
         var executor = new CommandExecutor { EventTypes = new DomainEventTypes() };
 
         Assert.Empty(Repository.Events);
-        var executed = await executor.Execute(new RegisterBranch("branch 0"));
-        executed = await executor.Execute(new RegisterBranch("branch1"));
+        var executed = await executor.Execute(new RegisterBranch("branch 0", "japan"));
+        executed = await executor.Execute(new RegisterBranch("branch1", "japan"));
         Assert.True(executed.IsSuccess);
         var aggregateId = executed.GetValue().PartitionKeys.AggregateId;
 

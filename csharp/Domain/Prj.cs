@@ -52,24 +52,24 @@ public record RegisterUser(string Name, string Email)
 #endregion
 
 #region Branch
-public record Branch(string Name) : IAggregatePayload;
-public record BranchCreated(string Name) : IEventPayload;
+public record Branch(string Name,string Country) : IAggregatePayload;
+public record BranchCreated(string Name, string Country) : IEventPayload;
 public record BranchNameChanged(string Name) : IEventPayload;
 public class BranchProjector : IAggregateProjector
 {
     public IAggregatePayload Project(IAggregatePayload payload, IEvent ev) =>
         (payload, ev.GetPayload()) switch
         {
-            (EmptyAggregatePayload, BranchCreated created) => new Branch(created.Name),
-            (Branch branch, BranchNameChanged changed) => new Branch(changed.Name),
+            (EmptyAggregatePayload, BranchCreated created) => new Branch(created.Name, created.Country),
+            (Branch branch, BranchNameChanged changed) => branch with {Name = changed.Name},
             _ => payload
         };
 }
-public record RegisterBranch(string Name) : ICommandWithHandler<RegisterBranch, BranchProjector>
+public record RegisterBranch(string Name, string Country) : ICommandWithHandler<RegisterBranch, BranchProjector>
 {
     public PartitionKeys SpecifyPartitionKeys(RegisterBranch command) => PartitionKeys<BranchProjector>.Generate();
     public ResultBox<EventOrNone> Handle(RegisterBranch command, ICommandContext context) =>
-        EventOrNone.Event(new BranchCreated(command.Name));
+        EventOrNone.Event(new BranchCreated(command.Name, command.Country));
 }
 public record ChangeBranchName(Guid BranchId, string NameToChange)
     : ICommandWithHandler<ChangeBranchName, BranchProjector>
@@ -86,10 +86,10 @@ public class RegisterCommand2Handler : ICommandHandler<RegisterCommand2>, IComma
         throw new NotImplementedException();
     public PartitionKeys SpecifyPartitionKeys(RegisterCommand2 command) => throw new NotImplementedException();
 }
-public record RegisterCommand3(string Name) : ICommand, ICommandHandler<RegisterCommand3>
+public record RegisterCommand3(string Name, string Country) : ICommand, ICommandHandler<RegisterCommand3>
 {
     public ResultBox<EventOrNone> Handle(RegisterCommand3 command, ICommandContext context) =>
-        EventOrNone.Event(new BranchCreated(command.Name));
+        EventOrNone.Event(new BranchCreated(command.Name, command.Country));
 }
 #endregion
 

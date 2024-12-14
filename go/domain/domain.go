@@ -17,6 +17,14 @@ func (b BranchNameChanged) IsEventPayload() bool {
 	return true
 }
 
+type BranchCountryChanged struct {
+	Country string
+}
+
+func (b BranchCountryChanged) IsEventPayload() bool {
+	return true
+}
+
 type Branch struct {
 	Name    string
 	Country string
@@ -46,7 +54,12 @@ func (p BranchProjector) Project(payload AggregatePayload, ev *EventCommon) Aggr
 		case BranchNameChanged:
 			return Branch{
 				Name:    ep.Name,
-				Country: ap.Country, // 他のフィールドは元の値をコピー
+				Country: ap.Country,
+			}
+		case BranchCountryChanged:
+			return Branch{
+				Name:    ap.Name,
+				Country: ep.Country,
 			}
 		default:
 			return payload
@@ -72,4 +85,24 @@ type ChangeBranchNameCommand struct {
 
 func (c ChangeBranchNameCommand) IsCommand() bool {
 	return true
+}
+
+type ChangeBranchCountryCommand struct {
+	Country       string
+	PartitionKeys PartitionKeys
+}
+
+func (c ChangeBranchCountryCommand) IsCommand() bool {
+	return true
+}
+
+func (c ChangeBranchCountryCommand) Handle(context CommandContext) EventPayloadOrNone {
+	return ReturnEventPayload(BranchCountryChanged{Country: c.Country})
+}
+
+func (c ChangeBranchCountryCommand) SpecifyPartitionKeys() PartitionKeys {
+	return c.PartitionKeys
+}
+func (c ChangeBranchCountryCommand) GetProjector() AggregateProjector {
+	return BranchProjector{}
 }
