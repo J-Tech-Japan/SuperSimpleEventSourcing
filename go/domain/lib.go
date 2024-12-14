@@ -211,3 +211,42 @@ func (r *Repository) Save(newEvent EventCommon) error {
 	r.Events = append(r.Events, newEvent)
 	return nil
 }
+
+type CommandResponse struct {
+	PartitionKeys PartitionKeys `json:"partition_keys"`
+	Events        []EventCommon `json:"events"`
+	Version       int64         `json:"version"`
+}
+
+type EventPayloadOrNone struct {
+	HasValue bool
+	Value    EventPayload
+}
+
+func ReturnEventPayload(value EventPayload) EventPayloadOrNone {
+	return EventPayloadOrNone{HasValue: true, Value: value}
+}
+
+func (e EventPayloadOrNone) GetValue() EventPayload {
+	return e.Value
+}
+
+type CommandContext struct {
+	Aggregate Aggregate
+	Projector AggregateProjector
+	Events    []EventCommon
+}
+
+func (ctx *CommandContext) AppendEvent(eventPayload EventPayload) EventPayloadOrNone {
+	// TypedEventを生成
+	toAdd := EventCommon{
+		Version:          ctx.Aggregate.Version + 1,
+		SortableUniqueID: GetCurrentIdFromUtc(),
+		PartitionKeys:    ctx.Aggregate.PartitionKeys,
+		Payload:          eventPayload,
+	}
+	aggregate := ctx.Aggregate.Project(&toAdd, ctx.Projector)
+	ctx.Aggregate = aggregate
+	ctx.Events = append(ctx.Events, toAdd)
+	return EventPayloadOrNone{HasValue: false}
+}
