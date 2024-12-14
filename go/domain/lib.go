@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -124,8 +125,7 @@ func GetSafeIdFromUtc() string {
 }
 
 func GetCurrentIdFromUtc() string {
-	now := time.Now().UTC().UnixNano() / 100
-	return fmt.Sprintf(TickFormatter, now) + GetIdString(uuid.New())
+	return GetTickString(time.Now().UTC()) + GetIdString(uuid.New())
 }
 
 const (
@@ -173,5 +173,41 @@ func OptionalValue(value *string) *SortableUniqueIdValue {
 		val := NewSortableUniqueIdValue(*value)
 		return &val
 	}
+	return nil
+}
+
+type Repository struct {
+	Events []EventCommon
+}
+
+func NewRepository() *Repository {
+	return &Repository{Events: make([]EventCommon, 0)}
+}
+
+// Load filters and projects events into an Aggregate based on the partition keys.
+func (r *Repository) Load(partitionKeys PartitionKeys, projector AggregateProjector) (Aggregate, error) {
+	// Filter events based on partition keys
+	filtered := []EventCommon{}
+	for _, ev := range r.Events {
+		if ev.PartitionKeys == partitionKeys {
+			filtered = append(filtered, ev)
+		}
+	}
+
+	// Sort events by SortableUniqueId
+	sort.Slice(filtered, func(i, j int) bool {
+		return filtered[i].SortableUniqueID < filtered[j].SortableUniqueID
+	})
+
+	// Project events into an Aggregate
+	aggregate := EmptyFromPartitionKeys(partitionKeys)
+	projected := aggregate.ProjectAll(filtered, projector)
+
+	return projected, nil
+}
+
+// Save adds a single event to the repository.
+func (r *Repository) Save(newEvent EventCommon) error {
+	r.Events = append(r.Events, newEvent)
 	return nil
 }
