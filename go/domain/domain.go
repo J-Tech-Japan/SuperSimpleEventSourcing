@@ -55,3 +55,21 @@ func (p BranchProjector) Project(payload AggregatePayload, ev *EventCommon) Aggr
 		return payload
 	}
 }
+
+type CreateBranchCommand struct {
+	Name    string
+	Country string
+}
+
+func (c CreateBranchCommand) IsCommand() bool {
+	return true
+}
+
+type ChangeBranchNameCommand struct {
+	Name          string
+	PartitionKeys PartitionKeys
+}
+
+func (c ChangeBranchNameCommand) IsCommand() bool {
+	return true
+}
