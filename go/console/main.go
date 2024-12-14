@@ -23,8 +23,8 @@ func main() {
 	fmt.Printf("Partition Key: %+v\n", pk)
 
 	event := domain.EventCommon{
-		Version:          0,
-		SortableUniqueID: "",
+		Version:          1,
+		SortableUniqueID: domain.GetCurrentIdFromUtc(),
 		PartitionKeys:    pk,
 		Payload:          branchCreated,
 	}
@@ -36,13 +36,9 @@ func main() {
 	changedName := domain.BranchNameChanged{Name: "Osaka"}
 	event2 := domain.EventCommon{
 		Version:          2,
-		SortableUniqueID: "23222",
-		PartitionKeys: domain.PartitionKeys{
-			AggregateID:      uuid.New(),
-			Group:            "default",
-			RootPartitionKey: "default",
-		},
-		Payload: changedName,
+		SortableUniqueID: domain.GetCurrentIdFromUtc(),
+		PartitionKeys:    pk,
+		Payload:          changedName,
 	}
 	changedNamePayload := branchProjector.Project(createdPayload, &event2)
 	fmt.Printf("changed name payload: %+v\n", changedNamePayload)
@@ -54,5 +50,18 @@ func main() {
 
 	sortableUniqueId := domain.GenerateSortableUniqueID(time.Now().UTC(), uuid.New())
 	fmt.Printf("sortable unique ID: %+v\n", sortableUniqueId)
+
+	repository := domain.NewRepository()
+	if err := repository.Save(event); err != nil {
+		fmt.Printf("Error saving event: %v\n", err)
+	}
+	if err := repository.Save(event2); err != nil {
+		fmt.Printf("Error saving event2: %v\n", err)
+	}
+	aggregate, err := repository.Load(pk, branchProjector)
+	if err != nil {
+		fmt.Printf("Error loading aggregate: %v\n", err)
+	}
+	fmt.Printf("aggregate: %+v\n", aggregate)
 
 }
