@@ -43,11 +43,13 @@ https://github.com/J-Tech-Japan/SuperSimpleEventSourcing/tree/main/csharp
 ![Web API Usage Sample](/output.gif)
 
 # Language 2. (Rust)
-With my limited knowledge and help of LLM, I have completed very very simple Rust implementation. In comsole you can see it can send command and change aggregate.
+With my limited knowledge and help of LLM, I have completed very very simple Rust implementation. In console you can see it can send command and change aggregate. Change Suggestion welcomed!
 
 https://github.com/J-Tech-Japan/SuperSimpleEventSourcing/tree/main/rust
 
 # Language 3. (Go)
+
+With my limited knowledge and help of LLM, I have completed very very simple Go implementation as well. In console you can see it can send command and change aggregate. Change Suggestion welcomed!
 
 https://github.com/J-Tech-Japan/SuperSimpleEventSourcing/tree/main/go
 
