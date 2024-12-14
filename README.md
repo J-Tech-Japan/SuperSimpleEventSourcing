@@ -47,9 +47,12 @@ With my limited knowledge and help of LLM, I have completed very very simple Rus
 
 https://github.com/J-Tech-Japan/SuperSimpleEventSourcing/tree/main/rust
 
+# Language 3. (Go)
+
+https://github.com/J-Tech-Japan/SuperSimpleEventSourcing/tree/main/go
+
 # Other Languages might coming...
 
-- Go ?
 - Typescript ?
 - F# 
 
