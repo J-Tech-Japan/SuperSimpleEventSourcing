@@ -68,6 +68,7 @@ func main() {
 		Country: "Japan",
 	}
 	branchProjector := domain.BranchProjector{}
+	// command and method to handle
 	response, err := domain.ExecuteCommand(repository,
 		createBranch,
 		branchProjector,
@@ -82,15 +83,13 @@ func main() {
 			return domain.ReturnEventPayload(domain.BranchCreated{command.Name, command.Country})
 		})
 	if err != nil {
-		return
+		fmt.Printf("Error executing command: %v\n", err)
 	}
-	fmt.Printf("response: %+v\n", response)
-	aggregate, err := repository.Load(response.PartitionKeys, branchProjector)
-	fmt.Printf("aggregate: %+v\n", aggregate)
 	changeNameCommand := domain.ChangeBranchNameCommand{
 		Name:          "Osaka",
 		PartitionKeys: response.PartitionKeys,
 	}
+	// command and method to handle
 	response, err = domain.ExecuteCommand(repository,
 		changeNameCommand,
 		branchProjector,
@@ -103,6 +102,15 @@ func main() {
 	if err != nil {
 		fmt.Printf("Error executing command: %v\n", err)
 	}
-	aggregate2, err := repository.Load(response.PartitionKeys, branchProjector)
-	fmt.Printf("aggregate: %+v\n", aggregate2)
+	changeCountryCommand := domain.ChangeBranchCountryCommand{
+		Country:       "USA",
+		PartitionKeys: response.PartitionKeys,
+	}
+	// command with Handler includes the command and method to handle
+	response, err = domain.ExecuteCommandWithHandler(repository, changeCountryCommand)
+	if err != nil {
+		fmt.Printf("Error executing command: %v\n", err)
+	}
+	aggregate3, err := repository.Load(response.PartitionKeys, branchProjector)
+	fmt.Printf("aggregate: %+v\n", aggregate3)
 }
