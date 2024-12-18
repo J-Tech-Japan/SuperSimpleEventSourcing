@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"go_eventsourcing/domain"
+	"time"
 )
 
 func main() {
@@ -47,8 +48,14 @@ func main() {
 	//aggregateAfterCreated := aggregateStart.Project(&event, branchProjector)
 	//fmt.Printf("branch created aggregate: %+v\n", aggregateAfterCreated)
 	//
-	//sortableUniqueId := domain.GenerateSortableUniqueID(time.Now().UTC(), uuid.New())
-	//fmt.Printf("sortable unique ID: %+v\n", sortableUniqueId)
+	sortableUniqueId := domain.GenerateSortableUniqueID(time.Now().UTC(), uuid.New())
+	fmt.Printf("sortable unique ID: %+v\n", sortableUniqueId)
+
+	timsstamp := time.Now().UTC()
+	durationSinceUnix := timsstamp.Sub(time.Unix(0, 0))
+	ticksSinceUnix := uint64(durationSinceUnix.Seconds()) * 10_000_000
+	fmt.Printf("duration since unix: %+v\n", durationSinceUnix)
+	fmt.Printf("ticks since unix: %+v\n", ticksSinceUnix)
 	//
 	//repository := domain.NewRepository()
 	//if err := repository.Save(event); err != nil {

@@ -2,7 +2,7 @@
 console.log('hello world');
 
 import { BranchCreated, BranchProjector } from './domain';
-import { PartitionKeys, EventCommon, EmptyAggregatePayload } from './lib';
+import { PartitionKeys, EventCommon, EmptyAggregatePayload, SortableUniqueIdValue } from './lib';
 import { v4 as uuidv4 } from 'uuid';
 
 const branchCreatedEventPaylaod = new BranchCreated('London', 'UK');
@@ -28,3 +28,6 @@ console.log(branchProjector.GetVersion());
 const branch = branchProjector.Project(new EmptyAggregatePayload(), branchCreatedEvent);
 
 console.log(branch);
+
+const SortableUniqueID = SortableUniqueIdValue.generateSortableUniqueID(new Date(), uuidv4());
+console.log(SortableUniqueID);
