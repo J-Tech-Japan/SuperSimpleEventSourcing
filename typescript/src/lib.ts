@@ -54,6 +54,9 @@ export class Aggregate {
         }
         return updated;
     }
+    public static EmptyFromPartitionKeys(partitionKeys: PartitionKeys): Aggregate {
+        return new Aggregate(new EmptyAggregatePayload(), partitionKeys, 0, '');
+    }
 }
 
 export interface AggregateProjector {
@@ -189,3 +192,39 @@ export class SortableUniqueIdValue {
 const TicksPerSecond = 10_000_000;
 const TicksFromUnixToCSharp = 621_355_968_000_000_000;
 
+export class Repository {
+  private Events: EventCommon[];
+
+  constructor() {
+      this.Events = [];
+  }
+
+  // Load filters and projects events into an Aggregate based on the partition keys.
+  Load(partitionKeys: PartitionKeys, projector: AggregateProjector): Aggregate {
+      // Filter events based on partition keys
+      const filtered = this.Events.filter(ev => ev.PartitionKeys === partitionKeys);
+
+      // Sort events by SortableUniqueID
+      filtered.sort((a, b) => {
+          if (a.SortableUniqueID < b.SortableUniqueID) return -1;
+          if (a.SortableUniqueID > b.SortableUniqueID) return 1;
+          return 0;
+      });
+
+      // Project events into an Aggregate
+      const aggregate = Aggregate.EmptyFromPartitionKeys(partitionKeys);
+      const projected = aggregate.ProjectAll(filtered, projector);
+
+      return projected;
+  }
+
+  // Save adds a single event to the repository.
+  Save(newEvent: EventCommon): void {
+      this.Events.push(newEvent);
+  }
+
+  // SaveAll adds multiple events to the repository.
+  SaveAll(newEvents: EventCommon[]): void {
+      this.Events.push(...newEvents);
+  }
+}

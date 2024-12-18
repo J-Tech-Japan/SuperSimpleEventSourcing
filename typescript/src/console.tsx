@@ -1,8 +1,8 @@
 // hello world
 console.log('hello world');
 
-import { BranchCreated, BranchProjector } from './domain';
-import { PartitionKeys, EventCommon, EmptyAggregatePayload, SortableUniqueIdValue } from './lib';
+import { BranchCreated, BranchNameChanged, BranchProjector } from './domain';
+import { PartitionKeys, EventCommon, EmptyAggregatePayload, SortableUniqueIdValue, Repository } from './lib';
 import { v4 as uuidv4 } from 'uuid';
 
 const branchCreatedEventPaylaod = new BranchCreated('London', 'UK');
@@ -31,3 +31,22 @@ console.log(branch);
 
 const SortableUniqueID = SortableUniqueIdValue.generateSortableUniqueID(new Date(), uuidv4());
 console.log(SortableUniqueID);
+
+let repository = new Repository();
+var event1 : EventCommon = {
+    Version: 1,
+    SortableUniqueID: SortableUniqueIdValue.generateSortableUniqueID(new Date(), uuidv4()),
+    PartitionKeys: partitionKey,
+    Payload: new BranchCreated('London', 'UK'),
+};
+repository.Save(event1);
+var event2 : EventCommon = {
+    Version: 2,
+    SortableUniqueID: SortableUniqueIdValue.generateSortableUniqueID(new Date(), uuidv4()),
+    PartitionKeys: partitionKey,
+    Payload: new BranchNameChanged('Manchester'),
+};
+repository.Save(event2);
+
+var aggregate = repository.Load(partitionKey, new BranchProjector());
+console.log(aggregate);
