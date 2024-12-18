@@ -228,3 +228,40 @@ export class Repository {
       this.Events.push(...newEvents);
   }
 }
+
+export type CommandResponse = {
+  partition_keys: PartitionKeys;
+  events: EventCommon[];
+  version: number;
+};
+
+export type None = {};
+export type EventPayloadOrNone = EventPayload | None;
+
+export class CommandContext {
+  Aggregate: Aggregate;
+  Projector: AggregateProjector;
+  Events: EventCommon[];
+
+  constructor(aggregate: Aggregate, projector: AggregateProjector, events: EventCommon[] = []) {
+      this.Aggregate = aggregate;
+      this.Projector = projector;
+      this.Events = events;
+  }
+
+  AppendEvent(eventPayload: EventPayload): EventPayloadOrNone {
+      const toAdd: EventCommon = {
+          Version: this.Aggregate.Version + 1,
+          SortableUniqueID: SortableUniqueIdValue.getCurrentIdFromUtc(),
+          PartitionKeys: this.Aggregate.PartitionKeys,
+          Payload: eventPayload
+      };
+
+      const aggregate = this.Aggregate.Project(toAdd, this.Projector);
+      this.Aggregate = aggregate;
+      this.Events.push(toAdd);
+
+      // GoではHasValue=falseでreturnしていますので同様にします。
+      return {};
+  }
+}
