@@ -1,15 +1,15 @@
-import { AggregatePayload, AggregateProjector, EmptyAggregatePayload, EventCommon, EventPayload } from "./lib";
+import { AggregatePayload, AggregateProjector, EmptyAggregatePayload, EventCommon, EventPayload, Command, CommandWithHandler, CommandContext, EventPayloadOrNone, PartitionKeys } from "./lib";
 
 export class BranchCreated implements EventPayload {
     type: string = 'BranchCreated';
-    constructor(public name: string, public country: string) {}
+    constructor(public readonly name: string, public readonly country: string) {}
     IsEventPayload(): boolean {
         return true;
     }
 }
 export class BranchNameChanged implements EventPayload {
     type: string = 'BranchNameChanged';
-    constructor(public name: string) {}
+    constructor(public readonly name: string) {}
     IsEventPayload(): boolean {
         return true;
     }
@@ -45,5 +45,31 @@ export class BranchProjector implements AggregateProjector {
         return payload;
     }
     GetVersion(): string { return '1.0.0'; }
+
+}
+
+export class CreateBranch implements Command {
+    IsCommand(): boolean {
+        return true;
+    }
+    constructor(public readonly name: string, public readonly country: string) {}
+}
+
+export class ChangeBranchName implements CommandWithHandler<ChangeBranchName> {
+
+    constructor(public readonly name: string, public readonly partitionKeys: PartitionKeys ) {}
+    GetAggregateProjector(): AggregateProjector {
+        return new BranchProjector();
+    }
+
+    PartitionKeysProvider(command: ChangeBranchName): PartitionKeys {
+        return command.partitionKeys;
+    }
+    CommandHandler(command: ChangeBranchName, context: CommandContext): EventPayloadOrNone {
+        return new BranchNameChanged(command.name);
+    }
+    IsCommand(): boolean {
+        return true;
+    }
 
 }
