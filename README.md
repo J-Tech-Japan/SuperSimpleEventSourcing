@@ -53,9 +53,14 @@ With my limited knowledge and help of LLM, I have completed very very simple Go 
 
 https://github.com/J-Tech-Japan/SuperSimpleEventSourcing/tree/main/go
 
+# Language 4. (Typescript)
+
+I use typescript for Frontend but not often. It was first time to write as backend component, first concept is made for the console application. Change Suggestion would be welcomed!
+
+https://github.com/J-Tech-Japan/SuperSimpleEventSourcing/tree/main/typescript
+
 # Other Languages might coming...
 
-- Typescript ?
 - F# 
 
 maybe.
