@@ -32,7 +32,7 @@ import { v4 as uuidv4 } from 'uuid';
 // const SortableUniqueID = SortableUniqueIdValue.generateSortableUniqueID(new Date(), uuidv4());
 // console.log(SortableUniqueID);
 
-// let repository = new Repository();
+// const repository = new Repository();
 // var event1 : EventCommon = {
 //     Version: 1,
 //     SortableUniqueID: SortableUniqueIdValue.generateSortableUniqueID(new Date(), uuidv4()),
@@ -52,20 +52,20 @@ import { v4 as uuidv4 } from 'uuid';
 // console.log(aggregate);
 
 
-let repository = new Repository();
-let commandExecutor = new CommandExecutor(repository);
+const repository = new Repository();
+const commandExecutor = new CommandExecutor(repository);
 
-let createBranchCommand = new CreateBranch('London', 'UK');
+const createBranchCommand = new CreateBranch('London', 'UK');
 let commandResponse = commandExecutor.ExecuteCommand(
     createBranchCommand, 
     new BranchProjector(), 
     (command) => new PartitionKeys(uuidv4(), 'Branch', 'Branch'),
     (command, context) => { return new BranchCreated(command.name, command.country);});
 
-let aggregate2 = repository.Load(commandResponse.partitionKeys, new BranchProjector());
+const aggregate2 = repository.Load(commandResponse.partitionKeys, new BranchProjector());
 console.log(aggregate2);
 
-let changeBranchNameCommand = new ChangeBranchName('Manchester', commandResponse.partitionKeys);
+const changeBranchNameCommand = new ChangeBranchName('Manchester', commandResponse.partitionKeys);
 
 // commandResponse = commandExecutor.ExecuteCommand(
 //     changeBranchNameCommand, 
@@ -75,5 +75,5 @@ let changeBranchNameCommand = new ChangeBranchName('Manchester', commandResponse
 commandResponse = commandExecutor.ExecuteCommandWithHandler(changeBranchNameCommand);
 commandResponse = commandExecutor.ExecuteCommandWithHandler(new ChangeBranchCountry('England', commandResponse.partitionKeys));
 
-let aggregate3 = repository.Load(commandResponse.partitionKeys, new BranchProjector());
+const aggregate3 = repository.Load(commandResponse.partitionKeys, new BranchProjector());
 console.log(aggregate3);
