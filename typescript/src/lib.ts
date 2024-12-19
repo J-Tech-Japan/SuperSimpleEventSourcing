@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
 export interface EventPayload {
+    type: string;
     IsEventPayload() : boolean;
 }
 
