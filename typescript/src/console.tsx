@@ -77,4 +77,3 @@ commandResponse = commandExecutor.ExecuteCommandWithHandler(new ChangeBranchCoun
 
 let aggregate3 = repository.Load(commandResponse.partitionKeys, new BranchProjector());
 console.log(aggregate3);
-
