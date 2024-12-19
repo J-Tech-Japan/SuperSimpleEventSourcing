@@ -24,7 +24,7 @@ export class BranchCountryChanged implements EventPayload {
 
 export class Branch implements AggregatePayload {
     type: string = 'Branch';
-    constructor(public name: string, public country: string) {}
+    constructor(public readonly name: string, public readonly country: string) {}
     IsAggregatePayload() : boolean {
         return true;
     }
@@ -54,7 +54,6 @@ export class CreateBranch implements Command {
     }
     constructor(public readonly name: string, public readonly country: string) {}
 }
-
 export class ChangeBranchName implements CommandWithHandler<ChangeBranchName> {
     constructor(public readonly name: string, public readonly partitionKeys: PartitionKeys ) {}
     GetAggregateProjector(): AggregateProjector {return new BranchProjector();}
