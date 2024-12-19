@@ -56,20 +56,21 @@ export class CreateBranch implements Command {
 }
 
 export class ChangeBranchName implements CommandWithHandler<ChangeBranchName> {
-
     constructor(public readonly name: string, public readonly partitionKeys: PartitionKeys ) {}
-    GetAggregateProjector(): AggregateProjector {
-        return new BranchProjector();
-    }
-
-    PartitionKeysProvider(command: ChangeBranchName): PartitionKeys {
-        return command.partitionKeys;
-    }
+    GetAggregateProjector(): AggregateProjector {return new BranchProjector();}
+    PartitionKeysProvider(command: ChangeBranchName): PartitionKeys { return command.partitionKeys;}
     CommandHandler(command: ChangeBranchName, context: CommandContext): EventPayloadOrNone {
         return new BranchNameChanged(command.name);
     }
-    IsCommand(): boolean {
-        return true;
-    }
+    IsCommand(): boolean { return true;}
+}
 
+export class ChangeBranchCountry implements CommandWithHandler<ChangeBranchCountry> {
+    constructor(public readonly country: string, public readonly partitionKeys: PartitionKeys ) {}
+    GetAggregateProjector(): AggregateProjector {return new BranchProjector();}
+    PartitionKeysProvider(command: ChangeBranchCountry): PartitionKeys { return command.partitionKeys;}
+    CommandHandler(command: ChangeBranchCountry, context: CommandContext): EventPayloadOrNone {
+        return new BranchCountryChanged(command.country);
+    }
+    IsCommand(): boolean { return true;}
 }

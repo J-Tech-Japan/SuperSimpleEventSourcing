@@ -1,7 +1,7 @@
 // hello world
 console.log('hello world');
 
-import { BranchCreated, BranchNameChanged, BranchProjector, ChangeBranchName, CreateBranch } from './domain';
+import { BranchCreated, BranchNameChanged, BranchProjector, ChangeBranchCountry, ChangeBranchName, CreateBranch } from './domain';
 import { PartitionKeys, EventCommon, EmptyAggregatePayload, SortableUniqueIdValue, Repository, CommandExecutor } from './lib';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -73,6 +73,7 @@ let changeBranchNameCommand = new ChangeBranchName('Manchester', commandResponse
 //     changeBranchNameCommand.PartitionKeysProvider, 
 //     changeBranchNameCommand.CommandHandler);
 commandResponse = commandExecutor.ExecuteCommandWithHandler(changeBranchNameCommand);
+commandResponse = commandExecutor.ExecuteCommandWithHandler(new ChangeBranchCountry('England', commandResponse.partitionKeys));
 
 let aggregate3 = repository.Load(commandResponse.partitionKeys, new BranchProjector());
 console.log(aggregate3);
