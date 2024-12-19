@@ -306,7 +306,7 @@ export class CommandExecutor {
       const eventPayloadOrNone = commandHandler(command, context);
 
       if (eventPayloadOrNone !== None) {
-          let eventPayload: EventPayload = eventPayloadOrNone as EventPayload;
+          const eventPayload: EventPayload = eventPayloadOrNone as EventPayload;
           const lastEvent: EventCommon = {
               Payload: eventPayload,
               PartitionKeys: currentAggregate.PartitionKeys,
