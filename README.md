@@ -61,7 +61,6 @@ https://github.com/J-Tech-Japan/SuperSimpleEventSourcing/tree/main/typescript
 
 # Other Languages might coming...
 
-- Typescript ?
 - F# 
 
 maybe.
