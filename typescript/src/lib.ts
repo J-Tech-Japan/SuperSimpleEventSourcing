@@ -4,10 +4,8 @@ export interface EventPayload {
     IsEventPayload() : boolean;
 }
 
-export type PartitionKeys = {
-    AggregateID: string;  // UUID is represented as a string in TypeScript
-    Group: string;
-    RootPartitionKey: string;
+export class PartitionKeys {
+  constructor(public readonly AggregateID: string, public readonly Group: string, public readonly RootPartitionKey: string) {}
 }
 
 export type EventCommon = {
@@ -83,7 +81,6 @@ export class SortableUniqueIdValue {
     return new Date(Number(ticks) / 1000000);
   }
 
-  // GetSafeId
   getSafeId(): string {
     const safeTicks = BigInt(this.getTicks().getTime()) - BigInt(SafeMilliseconds);
     return `${SortableUniqueIdValue.formatTick(safeTicks)}${this.getIdString('00000000-0000-0000-0000-000000000000')}`;
@@ -230,12 +227,14 @@ export class Repository {
 }
 
 export type CommandResponse = {
-  partition_keys: PartitionKeys;
+  partitionKeys: PartitionKeys;
   events: EventCommon[];
   version: number;
 };
 
+
 export type None = {};
+export const None : None = {};
 export type EventPayloadOrNone = EventPayload | None;
 
 export class CommandContext {
@@ -261,7 +260,68 @@ export class CommandContext {
       this.Aggregate = aggregate;
       this.Events.push(toAdd);
 
-      // GoではHasValue=falseでreturnしていますので同様にします。
-      return {};
+      return None;
+  }
+}
+
+export interface Command {
+  IsCommand(): boolean;
+}
+
+export interface CommandWithHandler<TCommand extends Command> extends Command {
+  GetAggregateProjector(): AggregateProjector;
+  PartitionKeysProvider(command: TCommand): PartitionKeys;
+  CommandHandler(command: TCommand, context: CommandContext): EventPayloadOrNone;
+}
+
+
+export class CommandExecutor {
+  private Repository: Repository;
+
+  constructor(repository: Repository) {
+      this.Repository = repository;
+  }
+
+  public ExecuteCommandWithHandler<TCommand extends CommandWithHandler<TCommand>>(
+    command: TCommand
+  ): CommandResponse {
+      return this.ExecuteCommand(
+          command,
+          command.GetAggregateProjector(),
+          command.PartitionKeysProvider,
+          command.CommandHandler
+      );
+  }
+
+  public ExecuteCommand<TCommand extends Command>(
+    command: TCommand,
+    projector: AggregateProjector,
+    partitionKeysProvider: (command: TCommand) => PartitionKeys,
+    commandHandler: (command: TCommand, context: CommandContext) => EventPayloadOrNone
+  ): CommandResponse {
+      const partitionKeys = partitionKeysProvider(command);
+      const currentAggregate = this.Repository.Load(partitionKeys, projector);
+      const context = new CommandContext(currentAggregate, projector, []);
+      const eventPayloadOrNone = commandHandler(command, context);
+
+      if (eventPayloadOrNone !== None) {
+          let eventPayload: EventPayload = eventPayloadOrNone as EventPayload;
+          const lastEvent: EventCommon = {
+              Payload: eventPayload,
+              PartitionKeys: currentAggregate.PartitionKeys,
+              SortableUniqueID: SortableUniqueIdValue.getCurrentIdFromUtc(),
+              Version: currentAggregate.Version + 1,
+          };
+
+          context.Aggregate = context.Aggregate.Project(lastEvent, projector);
+          context.Events.push(lastEvent);
+      }
+      const updatedAggregate = context.Aggregate;
+      this.Repository.SaveAll(context.Events);
+      return {
+          partitionKeys: updatedAggregate.PartitionKeys,
+          events: context.Events,
+          version: updatedAggregate.Version,
+      };
   }
 }
